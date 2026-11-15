@@ -16,6 +16,19 @@ The app talks to the backend API ([thugilcreationbackend-server](https://github.
 In development, Vite forwards every `/api` request to `http://localhost:3001` (see `vite.config.js`),
 so start the backend first.
 
+## Pointing the app at the backend
+
+| Where | What to do |
+|---|---|
+| Development | Nothing. Vite forwards `/api` to `http://localhost:3001` (`vite.config.js`). |
+| Deployed site | Set **`VITE_API_URL`** to the backend's address, e.g. `https://your-backend.onrender.com`, then **build again**. |
+
+`VITE_API_URL` is read when the site is *built* (Vite copies it into the files), so set it as an environment
+variable on your host (Render, Netlify, ...) before the build runs, or put it in a `.env` file next to `package.json`
+for a local build. See `.env.example`. It is public (anyone can see it in the page), so never put keys in it.
+
+The backend must also allow this site's address: set `CORS_ORIGIN` there (see the backend README).
+
 ## Scripts
 
 | Command | What it does |
