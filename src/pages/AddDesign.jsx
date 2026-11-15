@@ -3,6 +3,7 @@ import { HugeiconsIcon } from '@hugeicons/react';
 import { CheckmarkCircle02Icon, ArrowLeft01Icon } from '@hugeicons/core-free-icons';
 import { createDesign, fetchDesigners } from '../api';
 import ImageLibrary from '../components/ImageLibrary';
+import FullSetPictures, { emptyPart } from '../components/FullSetPictures';
 import { FORMS, CATEGORY_OPTIONS, CREATE_ONLY_FIELDS, emptyDesign } from '../designForms';
 
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
@@ -28,7 +29,7 @@ function sectionsFor(category) {
       fields: pick((f) => !BASICS.includes(f.k) && !PRICING.includes(f.k)),
     },
     { id: 'pricing', title: 'Label & pricing', hint: 'How the design is tagged and priced', fields: pick((f) => PRICING.includes(f.k)) },
-    { id: 'media', title: 'Designer & images', hint: 'Paste image links, or pick them from the library', fields: CREATE_ONLY_FIELDS },
+    { id: 'media', title: 'Designer & images', hint: category === 'full_set' ? 'A Full Set has several pictures: add each part below' : 'Paste image links, or pick them from the library', fields: category === 'full_set' ? CREATE_ONLY_FIELDS.filter((f) => f.k === 'designer_email') : CREATE_ONLY_FIELDS },
   ].filter((s) => s.fields.length > 0);
 }
 
@@ -112,6 +113,7 @@ export default function AddDesign({ onNavigate }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState(null);
+  const [parts, setParts] = useState(() => [emptyPart()]); // the pictures of a Full Set
   const [designers, setDesigners] = useState(null); // null while loading
   const [designersError, setDesignersError] = useState('');
 
@@ -134,11 +136,24 @@ export default function AddDesign({ onNavigate }) {
     const keep = {};
     CREATE_ONLY_FIELDS.forEach((f) => { keep[f.k] = values[f.k]; });
     setCategory(key);
+    setParts([emptyPart()]);
     setValues({ ...emptyDesign(key), ...keep });
     setFieldErrors({});
     setError('');
     setCreated(null);
   }
+
+  // clicking an image in the library: a Full Set puts it into the next empty part
+  const fillFromLibrary = (k, url) => {
+    if (category !== 'full_set') return set(k, url);
+    const field = k === 'original_image_url' ? 'original' : 'image';
+    setParts((list) => {
+      const at = list.findIndex((p) => !p[field]);
+      if (at >= 0) return list.map((p, i) => (i === at ? { ...p, [field]: url } : p));
+      return list.length >= 20 ? list : [...list, { ...emptyPart(), [field]: url }];
+    });
+    setFieldErrors((x) => ({ ...x, image_url: undefined, original_image_url: undefined }));
+  };
 
   const set = (k, v) => {
     setValues((x) => ({ ...x, [k]: v }));
@@ -152,10 +167,19 @@ export default function AddDesign({ onNavigate }) {
     setFieldErrors({});
     setCreated(null);
     try {
-      const saved = await createDesign(category, values);
+      let body = values;
+      if (category === 'full_set') {
+        const used = parts.filter((p) => p.image.trim() || p.original.trim());
+        const half = used.findIndex((p) => !p.image.trim() || !p.original.trim());
+        if (!used.length) { setFieldErrors({ image_url: 'Add at least one picture' }); setSaving(false); return; }
+        if (half >= 0) { setFieldErrors({ image_url: `Picture ${half + 1} needs both a preview and an original` }); setSaving(false); return; }
+        body = { ...values, image_url: used.map((p) => p.image.trim()).join(' '), original_image_url: used.map((p) => p.original.trim()).join(' ') };
+      }
+      const saved = await createDesign(category, body);
       setCreated(saved);
       // ready for the next one: keep category and designer, clear the rest
       setValues({ ...emptyDesign(category), designer_email: values.designer_email });
+      setParts([emptyPart()]);
       document.querySelector('.content')?.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setError(err.message);
@@ -205,6 +229,9 @@ export default function AddDesign({ onNavigate }) {
                   <Field key={f.k} f={f} value={values[f.k]} error={fieldErrors[f.k] || (f.k === 'designer_email' && designersError ? `list could not be loaded: ${designersError}` : undefined)} onChange={set} designers={designers} />
                 ))}
               </div>
+              {s.id === 'media' && category === 'full_set' && (
+                <FullSetPictures parts={parts} onChange={(p) => { setParts(p); setFieldErrors((x) => ({ ...x, image_url: undefined, original_image_url: undefined })); }} error={fieldErrors.image_url || fieldErrors.original_image_url} />
+              )}
               {s.id === 'pricing' && discount > 0 && (
                 <p className="panel-note">Shown to customers as ₹{final.toLocaleString('en-IN')} with ₹{listing.toLocaleString('en-IN')} struck through — {discount}% off.</p>
               )}
@@ -214,7 +241,7 @@ export default function AddDesign({ onNavigate }) {
           {error && <p className="modal-error">{error}</p>}
 
           <div className="add-actions">
-            <button type="button" className="btn" disabled={saving} onClick={() => { setValues(emptyDesign(category)); setFieldErrors({}); setError(''); }}>
+            <button type="button" className="btn" disabled={saving} onClick={() => { setValues(emptyDesign(category)); setParts([emptyPart()]); setFieldErrors({}); setError(''); }}>
               Clear form
             </button>
             <button type="submit" className="btn primary" disabled={saving}>
@@ -224,7 +251,7 @@ export default function AddDesign({ onNavigate }) {
         </form>
 
         <aside className="add-library">
-          <ImageLibrary onFill={set} />
+          <ImageLibrary onFill={fillFromLibrary} />
         </aside>
       </div>
     </div>

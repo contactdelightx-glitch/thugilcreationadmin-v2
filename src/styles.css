@@ -1061,3 +1061,24 @@ button.dash-row:hover { background: var(--gray); }
 .split-rows em { font-style: normal; color: var(--muted); }
 @media (max-width: 1100px) { .split-card { grid-column: span 2; } }
 @media (max-width: 800px) { .split-card { grid-column: span 1; } }
+
+/* ---------- Full Set pictures (Add design) ---------- */
+.fsp { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--gray-hover); }
+.fsp-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 10px; }
+.fsp-head .field-label { font-size: 13px; font-weight: 500; }
+.fsp-head em { font-style: normal; font-weight: 400; color: var(--muted); }
+.fsp-head .muted { font-size: 12.5px; }
+.fsp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.fsp-row { display: flex; align-items: center; gap: 10px; padding: 8px; background: var(--gray); }
+.fsp-no { width: 22px; flex-shrink: 0; text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); }
+.fsp-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.fsp-field { display: flex; align-items: center; gap: 4px; }
+.fsp-field input { flex: 1; min-width: 0; padding: 8px 10px; border: 0; background: var(--white); font-size: 13px; color: var(--black); outline: 0; }
+.fsp-field input:focus { box-shadow: inset 0 0 0 1.5px var(--highlight); }
+.fsp-thumb { width: 44px; height: 44px; object-fit: cover; background: var(--white); flex-shrink: 0; }
+.fsp-actions { display: inline-flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.fsp-actions .icon-btn, .fsp-field .icon-btn { width: 28px; height: 28px; background: var(--white); }
+.fsp-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin-top: 10px; }
+.fsp-foot .link-btn { display: inline-flex; align-items: center; gap: 6px; }
+.fsp-foot .muted { font-size: 12.5px; }
+.fsp.has-error .fsp-list { box-shadow: 0 0 0 1.5px var(--accent); }

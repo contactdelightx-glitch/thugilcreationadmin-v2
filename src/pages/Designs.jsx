@@ -23,7 +23,7 @@ const fmtDate = (d) =>
 // table columns per view. `h` = header, `r` = cell renderer
 const dash = (v) => (v == null || v === '' ? <span className="muted">—</span> : v);
 const C = {
-  image: { h: 'Image', cls: 'col-img', r: (d) => <span className="thumb-sm"><Thumb src={d.image_url} alt={d.name || d.product_id} /></span> },
+  image: { h: 'Image', cls: 'col-img', r: (d) => <span className="thumb-sm"><Thumb src={String(d.image_url || '').trim().split(/\s+/)[0]} alt={d.name || d.product_id} /></span> },
   name: { h: 'Name', r: (d) => <span className="cell-strong">{d.name || 'Free image'}</span> },
   productId: { h: 'Product ID', r: (d) => <span className="mono">{d.product_id}</span> },
   category: { h: 'Category', r: (d, ctx) => ctx.labelOf(d.category) },
