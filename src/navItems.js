@@ -1,0 +1,27 @@
+import {
+  DashboardSquare01Icon,
+  UserGroupIcon,
+  Wallet01Icon,
+  GraduationScrollIcon,
+  Book02Icon,
+  Notification03Icon,
+  PaintBoardIcon,
+  ImageUploadIcon,
+  UserAccountIcon,
+  CreditCardIcon,
+  Certificate01Icon,
+} from '@hugeicons/core-free-icons';
+
+export const navItems = [
+  { label: 'Dashboard', icon: DashboardSquare01Icon },
+  { label: 'Designs', icon: PaintBoardIcon },
+  { label: 'Images', icon: ImageUploadIcon },
+  { label: 'Client', icon: UserAccountIcon },
+  { label: 'Payments', icon: Wallet01Icon },
+  { label: 'Course Payments', icon: CreditCardIcon },
+  { label: 'Users', icon: UserGroupIcon },
+  { label: 'Students', icon: GraduationScrollIcon },
+  { label: 'Courses', icon: Book02Icon },
+  { label: 'Certificates', icon: Certificate01Icon },
+  { label: 'Notifications', icon: Notification03Icon },
+];
