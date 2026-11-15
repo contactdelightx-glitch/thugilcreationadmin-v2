@@ -1082,3 +1082,20 @@ button.dash-row:hover { background: var(--gray); }
 .fsp-foot .link-btn { display: inline-flex; align-items: center; gap: 6px; }
 .fsp-foot .muted { font-size: 12.5px; }
 .fsp.has-error .fsp-list { box-shadow: 0 0 0 1.5px var(--accent); }
+
+/* ---------- Issue certificate (upload) ---------- */
+.modal.cert-issue { width: min(520px, 100%); display: flex; flex-direction: column; gap: 12px; }
+.cert-issue h2 { margin: 0; }
+.ci-facts { margin: 0; display: grid; gap: 6px; padding: 12px 14px; background: var(--gray); }
+.ci-facts div { display: flex; gap: 12px; justify-content: space-between; font-size: 14px; }
+.ci-facts dt { color: var(--muted); flex-shrink: 0; }
+.ci-facts dd { margin: 0; font-weight: 500; text-align: right; overflow-wrap: anywhere; }
+.ci-drop { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 26px 16px; border: 2px dashed var(--faint); background: var(--white); color: var(--black); cursor: pointer; font: inherit; transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease); }
+.ci-drop:hover, .ci-drop.over { background: var(--gray); border-color: var(--accent); }
+.ci-drop svg { color: var(--accent); }
+.ci-drop small { font-size: 12.5px; color: var(--muted); }
+.ci-file { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--gray); }
+.ci-file svg { color: var(--accent); flex-shrink: 0; }
+.ci-file-name { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.ci-file-name small { font-weight: 400; color: var(--muted); }
+.cert-actions { display: inline-flex; align-items: center; gap: 12px; }

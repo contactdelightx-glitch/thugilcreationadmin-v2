@@ -328,6 +328,18 @@ export async function answerDoubt(id, answer) {
   return data;
 }
 
+// Approves a request by uploading the certificate (PDF or image) from the admin's device.
+// `replace` swaps the file of a certificate that was already issued.
+export async function issueCertificate(enrollmentId, file, { replace = false } = {}) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await apiFetch(`/api/certificates/${enrollmentId}/${replace ? 'file' : 'issue'}`, { method: 'PUT', body: form });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+export const certificateFileUrl = (enrollmentId) => `${API}/api/certificates/${enrollmentId}/file`;
+
 async function sendCourse(url, options) {
   const res = await apiFetch(url, options);
   const data = await res.json().catch(() => ({}));

@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Search01Icon, ArrowRight01Icon, ArrowDown01Icon } from '@hugeicons/core-free-icons';
-import { fetchCertificates, fetchCertificateSummary } from '../api';
+import { fetchCertificates, fetchCertificateSummary, certificateFileUrl } from '../api';
+import IssueCertificateModal from '../components/IssueCertificateModal';
 import useInfiniteList from '../useInfiniteList';
 import ScrollFooter from '../components/ScrollFooter';
 
@@ -51,6 +52,7 @@ export default function Certificates() {
   const [status, setStatus] = useState('all');
   const [summary, setSummary] = useState(null);
   const [open, setOpen] = useState({}); // enrollment id -> true
+  const [issuing, setIssuing] = useState(null); // { cert, replace }: the certificate whose file is being uploaded
 
   useEffect(() => { fetchCertificateSummary().then(setSummary).catch(() => {}); }, []);
 
@@ -66,6 +68,7 @@ export default function Certificates() {
     (c) => c.enrollment_id
   );
   const { items: certs, loading, error } = list;
+  const done = () => { setIssuing(null); fetchCertificateSummary().then(setSummary).catch(() => {}); list.reload(); };
   const toggle = (id) => setOpen((o) => { if (o[id]) { const { [id]: _x, ...rest } = o; return rest; } return { ...o, [id]: true }; });
 
   return (
@@ -100,7 +103,7 @@ export default function Certificates() {
               <th>Status</th>
               <th>Requested</th>
               <th>Issued</th>
-              <th>File</th>
+              <th>File / action</th>
             </tr>
           </thead>
           <tbody>
@@ -124,7 +127,14 @@ export default function Certificates() {
                     <td data-label="Requested">{fmtDate(c.requested_at)}</td>
                     <td data-label="Issued">{fmtDate(c.issued_at)}</td>
                     <td data-label="File" onClick={(e) => e.stopPropagation()}>
-                      {c.certificate_url ? <a className="file-link" href={c.certificate_url} target="_blank" rel="noreferrer">Open</a> : dash}
+                      {c.status === 'requested' ? (
+                        <button type="button" className="btn primary" onClick={() => setIssuing({ cert: c, replace: false })}>Approve &amp; issue</button>
+                      ) : c.status === 'issued' ? (
+                        <span className="cert-actions">
+                          <a className="file-link" href={certificateFileUrl(c.enrollment_id)} target="_blank" rel="noreferrer">Open</a>
+                          <button type="button" className="link-btn" onClick={() => setIssuing({ cert: c, replace: true })}>Replace</button>
+                        </span>
+                      ) : dash}
                     </td>
                   </tr>
                   {isOpen && <tr className="order-items-row"><td colSpan={8}><Details c={c} /></td></tr>}
@@ -140,6 +150,7 @@ export default function Certificates() {
       </div>
 
       <ScrollFooter list={list} noun="certificates" />
+      {issuing && <IssueCertificateModal cert={issuing.cert} replace={issuing.replace} onClose={() => setIssuing(null)} onDone={done} />}
     </div>
   );
 }
