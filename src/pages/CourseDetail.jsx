@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { ArrowLeft01Icon } from '@hugeicons/core-free-icons';
-import { fetchCourse } from '../api';
+import { ArrowLeft01Icon, Edit02Icon } from '@hugeicons/core-free-icons';
+import { fetchCourse, setCourseStatus } from '../api';
 import { CourseTabs, Published, money, longDuration, fmtDate } from '../components/CourseParts';
 
 export default function CourseDetail({ onNavigate, params }) {
   const id = params?.id;
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [confirmStatus, setConfirmStatus] = useState(null); // 'published' | 'draft' while the question is open
+  const [changing, setChanging] = useState(false);
+  const [statusError, setStatusError] = useState('');
 
   useEffect(() => {
     if (!id) return undefined;
@@ -37,6 +40,13 @@ export default function CourseDetail({ onNavigate, params }) {
     <div className="course-detail">
       {back}
 
+      {params?.updated && (
+        <div className="success">
+          <span><strong>{c.title}</strong> was updated.</span>
+          <button className="btn" onClick={() => onNavigate('Courses')}>All courses</button>
+        </div>
+      )}
+
       {params?.created && (
         <div className="success">
           <span>
@@ -54,8 +64,54 @@ export default function CourseDetail({ onNavigate, params }) {
             {' · '}Updated {fmtDate(c.updated_at)}
           </p>
         </div>
-        <Published on={c.is_published} />
+        <div className="course-head-actions">
+          <Published on={c.is_published} />
+          <button className="btn" onClick={() => { setStatusError(''); setConfirmStatus(c.is_published ? 'draft' : 'published'); }}>
+            {c.is_published ? 'Unpublish' : 'Publish'}
+          </button>
+          <button className="btn primary with-icon" onClick={() => onNavigate('Edit Course', { id })}>
+            <HugeiconsIcon icon={Edit02Icon} size={16} strokeWidth={1.5} /> Edit course
+          </button>
+        </div>
       </header>
+
+      {confirmStatus && (
+        <div className="modal-backdrop" onClick={() => !changing && setConfirmStatus(null)}>
+          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h2>{confirmStatus === 'published' ? 'Publish this course' : 'Unpublish this course'}</h2>
+            <p className="modal-user">{c.title}</p>
+            <p>{confirmStatus === 'published'
+              ? 'Students will be able to see and buy this course.'
+              : 'Students will no longer see this course or be able to buy it. Students who already bought it keep their access.'}</p>
+            {c.is_published === false && confirmStatus === 'published' && c.videos === 0 && (
+              <p className="modal-note">This course has no videos yet.</p>
+            )}
+            {statusError && <p className="modal-error">{statusError}</p>}
+            <div className="modal-btns">
+              <button className="btn" onClick={() => setConfirmStatus(null)} disabled={changing}>Cancel</button>
+              <button
+                className="btn primary"
+                disabled={changing}
+                onClick={async () => {
+                  setChanging(true);
+                  setStatusError('');
+                  try {
+                    const updated = await setCourseStatus(id, confirmStatus);
+                    setData((d) => ({ ...d, course: updated }));
+                    setConfirmStatus(null);
+                  } catch (e) {
+                    setStatusError(e.message);
+                  } finally {
+                    setChanging(false);
+                  }
+                }}
+              >
+                {changing ? 'Working…' : confirmStatus === 'published' ? 'Publish' : 'Unpublish'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {c.description && <p className="course-desc">{c.description}</p>}
 
@@ -68,7 +124,7 @@ export default function CourseDetail({ onNavigate, params }) {
         <div className="kpi">
           <span className="stat-label">Content</span>
           <strong className="stat-value">{c.duration || (c.duration_seconds ? longDuration(c.duration_seconds) : '—')}</strong>
-          <span className="stat-hint">{c.sections} sections · {c.videos} videos · {c.resources} files</span>
+          <span className="stat-hint">{c.sections} {c.sections === 1 ? 'section' : 'sections'} · {c.videos} {c.videos === 1 ? 'video' : 'videos'} · {c.resources} {c.resources === 1 ? 'file' : 'files'}</span>
         </div>
         <div className="kpi">
           <span className="stat-label">Students</span>

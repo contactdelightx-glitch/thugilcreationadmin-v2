@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { Search01Icon, ArrowRight01Icon, AddSquareIcon } from '@hugeicons/core-free-icons';
+import { Search01Icon, ArrowRight01Icon, AddSquareIcon, Edit02Icon } from '@hugeicons/core-free-icons';
 import { fetchCourses, fetchCourseSummary } from '../api';
 import { money, longDuration, Published } from '../components/CourseParts';
 
@@ -76,11 +76,18 @@ export default function Courses({ onNavigate }) {
                   </span>
                 </td>
                 <td data-label="Duration">{c.duration || (c.duration_seconds ? longDuration(c.duration_seconds) : <span className="muted">No videos yet</span>)}</td>
-                <td data-label="Content">{c.sections} sections · {c.videos} videos</td>
+                <td data-label="Content">{c.sections} {c.sections === 1 ? 'section' : 'sections'} · {c.videos} {c.videos === 1 ? 'video' : 'videos'}</td>
                 <td data-label="Students" className="num">{c.students}</td>
                 <td data-label="Revenue" className="num">{money(c.revenue)}</td>
                 <td data-label="Rating">{c.review_count ? <span><span className="stars">★</span> {c.avg_rating.toFixed(1)} <span className="muted">({c.review_count})</span></span> : <span className="muted">No reviews</span>}</td>
-                <td className="col-toggle" data-label=""><HugeiconsIcon icon={ArrowRight01Icon} size={16} strokeWidth={1.5} /></td>
+                <td className="col-toggle row-end" data-label="">
+                  <div className="row-end-inner">
+                    <button className="btn edit-btn" title="Edit course" aria-label={`Edit ${c.title}`} onClick={(e) => { e.stopPropagation(); onNavigate('Edit Course', { id: c.id }); }}>
+                      <HugeiconsIcon icon={Edit02Icon} size={16} strokeWidth={1.5} /> Edit
+                    </button>
+                    <HugeiconsIcon className="row-chevron" icon={ArrowRight01Icon} size={16} strokeWidth={1.5} />
+                  </div>
+                </td>
               </tr>
             ))}
             {!courses && !error && <tr className="empty"><td colSpan={9}>Loading courses…</td></tr>}

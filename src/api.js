@@ -288,3 +288,71 @@ export async function fetchCertificateSummary() {
   if (!res.ok) throw new Error(`Request failed (${res.status})`);
   return res.json();
 }
+
+export async function fetchRatings({ search, filter, offset, limit, signal }) {
+  const qs = new URLSearchParams({ filter, offset, limit });
+  if (search) qs.set('search', search);
+  const res = await apiFetch(`/api/ratings?${qs}`, { signal });
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.json();
+}
+
+export async function fetchRatingSummary() {
+  const res = await apiFetch('/api/ratings/summary');
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.json();
+}
+
+export async function fetchDoubts({ search, status, offset, limit, signal }) {
+  const qs = new URLSearchParams({ status, offset, limit });
+  if (search) qs.set('search', search);
+  const res = await apiFetch(`/api/doubts?${qs}`, { signal });
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.json();
+}
+
+export async function fetchDoubtSummary() {
+  const res = await apiFetch('/api/doubts/summary');
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.json();
+}
+
+export async function answerDoubt(id, answer) {
+  const res = await apiFetch(`/api/doubts/${id}/answer`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answer }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data.fields && data.fields.answer && `Answer ${data.fields.answer}`) || data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+async function sendCourse(url, options) {
+  const res = await apiFetch(url, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.error || `Request failed (${res.status})`);
+    err.fields = data.fields || {};
+    throw err;
+  }
+  return data;
+}
+
+export const updateCourse = (id, body) =>
+  sendCourse(`/api/courses/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+export const setCourseStatus = (id, status) =>
+  sendCourse(`/api/courses/${id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+
+export async function fetchCourseCurriculum(id) {
+  const res = await apiFetch(`/api/courses/${id}/curriculum`);
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.json();
+}
+
+export async function fetchDashboard() {
+  const res = await apiFetch('/api/dashboard');
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.json();
+}

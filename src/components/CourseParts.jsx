@@ -33,10 +33,19 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
 export const Published = ({ on }) => <span className={`status ${on ? 'active' : 'suspended'}`}>{on ? 'Published' : 'Draft'}</span>;
 
 function Curriculum({ sections }) {
-  const [open, setOpen] = useState({});
+  // every section starts open, so the videos in it are visible straight away
+  const [open, setOpen] = useState(() => Object.fromEntries(sections.map((s) => [s.id, true])));
   const toggle = (id) => setOpen((o) => { if (o[id]) { const { [id]: _x, ...rest } = o; return rest; } return { ...o, [id]: true }; });
   if (!sections.length) return <p className="muted">No sections yet.</p>;
+  const videoTotal = sections.reduce((n, s) => n + s.videos.length, 0);
+  const allOpen = sections.every((s) => open[s.id]);
+  const setAll = (on) => setOpen(on ? Object.fromEntries(sections.map((s) => [s.id, true])) : {});
   return (
+    <>
+    <div className="curriculum-bar">
+      <span className="muted">{sections.length} sections · {videoTotal} videos</span>
+      <button type="button" className="link-btn" onClick={() => setAll(!allOpen)}>{allOpen ? 'Collapse all' : 'Expand all'}</button>
+    </div>
     <table className="sub-table">
       <thead>
         <tr><th className="col-toggle" /><th>#</th><th>Section</th><th className="num">Videos</th><th className="num">Duration</th><th>Status</th></tr>
@@ -44,13 +53,13 @@ function Curriculum({ sections }) {
       <tbody>
         {sections.map((s) => (
           <Fragment key={s.id}>
-            <tr className={`clickable-row${open[s.id] ? ' is-open' : ''}`} onClick={() => toggle(s.id)}>
+            <tr className={`clickable-row${open[s.id] ? ' is-open' : ''}`} tabIndex={0} aria-expanded={Boolean(open[s.id])} onClick={() => toggle(s.id)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggle(s.id))}>
               <td className="col-toggle" data-label="">
                 <HugeiconsIcon icon={open[s.id] ? ArrowDown01Icon : ArrowRight01Icon} size={16} strokeWidth={1.5} />
               </td>
               <td data-label="#">{s.position}</td>
               <td data-label="Section" className="cell-strong">{s.title}</td>
-              <td data-label="Videos" className="num">{s.videos.length}</td>
+              <td data-label="Videos" className="num">{s.videos.length || <span className="muted">0</span>}</td>
               <td data-label="Duration" className="num">{longDuration(s.duration_seconds)}</td>
               <td data-label="Status"><Published on={s.is_published} /></td>
             </tr>
@@ -84,6 +93,7 @@ function Curriculum({ sections }) {
         ))}
       </tbody>
     </table>
+    </>
   );
 }
 

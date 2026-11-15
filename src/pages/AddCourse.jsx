@@ -4,7 +4,7 @@ import {
   ArrowLeft01Icon, ArrowRight01Icon, Cancel01Icon, AddSquareIcon, File01Icon, InformationCircleIcon, BookOpen01Icon,
   Download04Icon, Image01Icon, CheckmarkCircle02Icon, Tick02Icon, ArrowUp01Icon, ArrowDown01Icon, Upload04Icon, Idea01Icon,
 } from '@hugeicons/core-free-icons';
-import { createCourse, fetchCourseCategories, uploadCourseThumbnail } from '../api';
+import { createCourse, updateCourse, fetchCourseCategories, uploadCourseThumbnail } from '../api';
 
 const STEPS = [
   { key: 'basics', title: 'Course Basics', sub: 'Define course title and description', icon: File01Icon },
@@ -29,11 +29,52 @@ const THUMB_MB = 5;
 const THUMB_TYPES = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 const isUrl = (v) => /^https?:\/\//i.test(v.trim());
 
+let uid = 0;
+const nextKey = (prefix) => `${prefix}${++uid}`;
+// 2759 -> "45:59"  (a video's length as typed in the form)
+const clock = (sec) => {
+  if (sec == null) return '';
+  const h = Math.floor(sec / 3600); const m = Math.floor((sec % 3600) / 60); const s2 = sec % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(s2).padStart(2, '0')}` : `${m}:${String(s2).padStart(2, '0')}`;
+};
+const LENGTH = /^\d{1,3}:[0-5]?\d(:[0-5]?\d)?$/;
+// "45:59" -> 2759, "1:02:03" -> 3723, "" -> null
+const toSeconds = (str) => {
+  const t = str.trim();
+  if (!t) return null;
+  const parts = t.split(':').map(Number);
+  return parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1];
+};
+const newVideo = () => ({ key: nextKey('nv'), id: null, title: '', description: '', link: '', hasLink: false, duration: '', is_free_preview: false, is_published: false, watchers: 0, files: 0 });
+const newSection = () => ({ key: nextKey('ns'), id: null, title: '', description: '', videoCount: 0, videos: [] });
+
 const initial = () => ({
   title: '', description: '', learning_points: [''], category: '', new_category: '',
   instructor_name: '', language: 'English', access_months: '', price: '', offer_certificate: false, certificate_with_price: '',
   sections: [], software: [], thumbnail_url: '', status: 'draft',
 });
+
+// the form's values for an existing course (d = what GET /api/courses/:id returns)
+const fromCourse = (d) => {
+  const c = d.course;
+  return {
+    title: c.title, description: c.description || '',
+    learning_points: d.learningPoints.length ? d.learningPoints.map((p) => p.text) : [''],
+    category: c.category_id ? String(c.category_id) : '', new_category: '',
+    instructor_name: c.instructor_name || '', language: c.language || '', access_months: c.duration_months ? String(c.duration_months) : '',
+    price: String(c.price), offer_certificate: c.certificate_with_price != null, certificate_with_price: c.certificate_with_price != null ? String(c.certificate_with_price) : '',
+    // d.curriculum (when it was loaded) carries each section's videos with what the form needs to know about them
+    sections: (d.curriculum ? d.curriculum.sections : d.sections).map((s) => ({
+      key: `s${s.id}`, id: s.id, title: s.title, description: s.description || '', videoCount: s.videos.length,
+      videos: s.videos.map((v) => ({
+        key: `v${v.id}`, id: v.id, title: v.title, description: v.description || '', link: '', hasLink: Boolean(v.has_video_link),
+        duration: clock(v.duration_seconds), is_free_preview: v.is_free_preview, is_published: v.is_published, watchers: v.watchers || 0, files: v.files || 0,
+      })),
+    })),
+    software: d.software.map((x) => ({ id: x.id, name: x.name, download_url: x.download_url, platform: x.platform || '', is_required: x.is_required, description: x.description || '' })),
+    thumbnail_url: c.thumbnail_url || '', status: c.is_published ? 'published' : 'draft',
+  };
+};
 
 function Counter({ value, max }) {
   return <span className={`counter${value.length >= max * 0.9 ? ' near' : ''}`}>{value.length}/{max}</span>;
@@ -80,6 +121,17 @@ function validate(i, v) {
   if (i === 2) {
     const bad = v.sections.findIndex((s) => (s.title.trim() || s.description.trim()) && !s.title.trim());
     if (bad >= 0) e.sections = `section ${bad + 1} needs a title`;
+    else {
+      for (const [si, sec] of v.sections.entries()) {
+        for (const [vi, vid] of (sec.videos || []).entries()) {
+          const where = `section ${si + 1}, video ${vi + 1}`;
+          if (!vid.title.trim() && (vid.description.trim() || vid.link.trim() || vid.duration.trim())) { e.sections = `${where} needs a title`; break; }
+          if (vid.link.trim() && !isUrl(vid.link)) { e.sections = `${where}: the link must start with http:// or https://`; break; }
+          if (vid.duration.trim() && !LENGTH.test(vid.duration.trim())) { e.sections = `${where}: write the length like 12:30 (minutes:seconds)`; break; }
+        }
+        if (e.sections) break;
+      }
+    }
   }
   if (i === 3) {
     const bad = v.software.findIndex((s) => (s.name.trim() || s.download_url.trim() || s.description.trim()) && (!s.name.trim() || !isUrl(s.download_url)));
@@ -89,10 +141,15 @@ function validate(i, v) {
   return e;
 }
 
-export default function AddCourse({ onNavigate }) {
+/** The step-by-step course form. Give it `course` (from GET /api/courses/:id) to edit that course; leave it out to create a new one. */
+export function CourseWizard({ onNavigate, course }) {
+  const editing = Boolean(course);
+  const courseId = course ? course.course.id : null;
+  const leave = () => (editing ? onNavigate('Course Details', { id: courseId }) : onNavigate('Courses'));
+  const [thumbBroken, setThumbBroken] = useState(false);
   const [step, setStep] = useState(0);
   const [reached, setReached] = useState(0);
-  const [values, setValues] = useState(initial);
+  const [values, setValues] = useState(() => (course ? fromCourse(course) : initial()));
   const [errors, setErrors] = useState({});
   const [categories, setCategories] = useState(null); // null while loading
   const [saving, setSaving] = useState(false);
@@ -103,6 +160,7 @@ export default function AddCourse({ onNavigate }) {
   const fileInput = useRef(null);
 
   useEffect(() => { fetchCourseCategories().then(setCategories).catch(() => setCategories([])); }, []);
+  useEffect(() => { setThumbBroken(false); }, [values.thumbnail_url]);
 
   const set = (k, v) => {
     setValues((x) => ({ ...x, [k]: v }));
@@ -141,13 +199,22 @@ export default function AddCourse({ onNavigate }) {
       price: values.price, access_months: values.access_months, status: values.status, thumbnail_url: values.thumbnail_url,
       certificate_with_price: values.offer_certificate ? values.certificate_with_price : '',
       learning_points: values.learning_points.map((p) => p.trim()).filter(Boolean),
-      sections: values.sections.map((s) => ({ title: s.title, description: s.description })),
+      // an id means "this existing section / video"; the videos are only sent when editing
+      sections: values.sections.map((s) => ({
+        id: s.id, title: s.title, description: s.description,
+        ...(editing ? {
+          videos: s.videos.map((v) => ({
+            id: v.id, title: v.title, description: v.description, video_url: v.link, duration_seconds: toSeconds(v.duration),
+            is_free_preview: v.is_free_preview, is_published: v.is_published,
+          })),
+        } : {}),
+      })),
       software: values.software,
       ...(isNew ? { new_category: values.new_category } : values.category ? { category_id: Number(values.category) } : {}),
     };
     try {
-      const course = await createCourse(body);
-      onNavigate('Course Details', { id: course.id, created: true });
+      const saved = editing ? await updateCourse(courseId, body) : await createCourse(body);
+      onNavigate('Course Details', { id: saved.id, ...(editing ? { updated: true } : { created: true }) });
     } catch (err) {
       const fields = err.fields || {};
       const keys = Object.keys(fields);
@@ -181,6 +248,15 @@ export default function AddCourse({ onNavigate }) {
 
   const progress = Math.round(((step + 1) / STEPS.length) * 100);
   const cur = STEPS[step];
+  const [collapsed, setCollapsed] = useState({}); // section key -> its videos are hidden
+  const [moreOpen, setMoreOpen] = useState({}); // video key -> description / link are shown
+  const patchSection = (si, patch) => set('sections', values.sections.map((x, j) => (j === si ? { ...x, ...patch } : x)));
+  const patchVideo = (si, vi, patch) => patchSection(si, { videos: values.sections[si].videos.map((v, j) => (j === vi ? { ...v, ...patch } : v)) });
+  const moveVideo = (si, vi, by) => { const list = [...values.sections[si].videos]; [list[vi], list[vi + by]] = [list[vi + by], list[vi]]; patchSection(si, { videos: list }); };
+  const removeVideo = (si, vi) => patchSection(si, { videos: values.sections[si].videos.filter((_, j) => j !== vi) });
+  const addVideo = (si) => { const v = newVideo(); patchSection(si, { videos: [...values.sections[si].videos, v] }); setMoreOpen((o) => ({ ...o, [v.key]: true })); setCollapsed((c) => ({ ...c, [values.sections[si].key]: false })); };
+  const videoTotal = values.sections.reduce((n, x) => n + x.videos.length, 0);
+  const allCollapsed = values.sections.length > 0 && values.sections.every((x) => collapsed[x.key]);
   const moveRow = (k, i, by) => setList(k, (list) => { const next = [...list]; [next[i], next[i + by]] = [next[i + by], next[i]]; return next; });
   const category = categories?.find((c) => String(c.id) === values.category);
   const certExtra = values.offer_certificate && values.price && values.certificate_with_price
@@ -191,13 +267,13 @@ export default function AddCourse({ onNavigate }) {
 
   return (
     <div className="add-design add-course">
-      <button type="button" className="back-link" onClick={() => onNavigate('Courses')}>
-        <HugeiconsIcon icon={ArrowLeft01Icon} size={18} strokeWidth={1.5} /> Back to courses
+      <button type="button" className="back-link" onClick={leave}>
+        <HugeiconsIcon icon={ArrowLeft01Icon} size={18} strokeWidth={1.5} /> {editing ? 'Back to the course' : 'Back to courses'}
       </button>
 
       <div className="add-intro">
-        <h2>Create Course</h2>
-        <p className="muted add-sub">Build and launch your online course</p>
+        <h2>{editing ? 'Edit Course' : 'Create Course'}</h2>
+        <p className="muted add-sub">{editing ? course.course.title : 'Build and launch your online course'}</p>
       </div>
 
       <div className="wizard">
@@ -323,24 +399,81 @@ export default function AddCourse({ onNavigate }) {
 
           {step === 2 && (
             <>
-              <div className="note">Videos can’t be uploaded from here yet. Add the sections now and put videos into them after the course is created.</div>
-              <Group label="Sections" hint={`${filledSections.length} section${filledSections.length === 1 ? '' : 's'} — they appear in this order`} error={errors.sections}
-                action={<button type="button" className="link-btn" onClick={() => setList('sections', (l) => [...l, { title: '', description: '' }])}>+ Add Section</button>}>
+              <div className="note">{editing
+                ? 'Change the order of sections and of the videos in them, and edit each video’s details. A video file itself can’t be uploaded from here: to replace one, paste its new link. Sections and videos that students have started can’t be removed.'
+                : 'Videos can’t be uploaded from here yet. Add the sections now and put videos into them after the course is created.'}</div>
+              <Group label="Sections" hint={`${filledSections.length} section${filledSections.length === 1 ? '' : 's'}${editing ? ` · ${videoTotal} video${videoTotal === 1 ? '' : 's'}` : ''} — they appear in this order`} error={errors.sections}
+                action={
+                  <span className="group-actions">
+                    {editing && values.sections.length > 0 && (
+                      <button type="button" className="link-btn" onClick={() => setCollapsed(allCollapsed ? {} : Object.fromEntries(values.sections.map((x) => [x.key, true])))}>
+                        {allCollapsed ? 'Show all videos' : 'Hide all videos'}
+                      </button>
+                    )}
+                    <button type="button" className="link-btn" onClick={() => setList('sections', (l) => [...l, newSection()])}>+ Add Section</button>
+                  </span>
+                }>
                 {values.sections.length === 0 && <p className="empty-line">No sections yet. You can skip this and add them later.</p>}
                 <div className="rows">
                   {values.sections.map((s, i) => (
-                    <div key={i} className="row-card">
+                    <div key={s.key} className="row-card">
                       <span className="point-num">{i + 1}</span>
                       <div className="row-fields">
-                        <input type="text" maxLength={MAX.section} placeholder="Section title" aria-label={`Section ${i + 1} title`} value={s.title}
-                          onChange={(e) => setList('sections', (l) => l.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} />
+                        <div className="row-head">
+                            <input type="text" maxLength={MAX.section} placeholder="Section title" aria-label={`Section ${i + 1} title`} value={s.title}
+                            onChange={(e) => patchSection(i, { title: e.target.value })} />
+                        <div className="row-actions-col head-actions">
+                          <button type="button" className="icon-btn" aria-label="Move up" disabled={i === 0} onClick={() => moveRow('sections', i, -1)}><HugeiconsIcon icon={ArrowUp01Icon} size={16} strokeWidth={1.5} /></button>
+                          <button type="button" className="icon-btn" aria-label="Move down" disabled={i === values.sections.length - 1} onClick={() => moveRow('sections', i, 1)}><HugeiconsIcon icon={ArrowDown01Icon} size={16} strokeWidth={1.5} /></button>
+                          {s.videoCount > 0 && <span className="video-badge" title="This section has videos, so it can’t be removed">{s.videoCount} {s.videoCount === 1 ? 'video' : 'videos'}</span>}
+                          <button type="button" className="icon-btn" aria-label={`Remove section ${i + 1}`} disabled={s.videoCount > 0} title={s.videoCount > 0 ? 'Has videos, so it can’t be removed' : undefined} onClick={() => setList('sections', (l) => l.filter((_, j) => j !== i))}><HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={1.5} /></button>
+                        </div>
+                        </div>
                         <input type="text" maxLength={MAX.sectionDesc} placeholder="Short description (optional)" aria-label={`Section ${i + 1} description`} value={s.description}
-                          onChange={(e) => setList('sections', (l) => l.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />
-                      </div>
-                      <div className="row-actions-col">
-                        <button type="button" className="icon-btn" aria-label="Move up" disabled={i === 0} onClick={() => moveRow('sections', i, -1)}><HugeiconsIcon icon={ArrowUp01Icon} size={16} strokeWidth={1.5} /></button>
-                        <button type="button" className="icon-btn" aria-label="Move down" disabled={i === values.sections.length - 1} onClick={() => moveRow('sections', i, 1)}><HugeiconsIcon icon={ArrowDown01Icon} size={16} strokeWidth={1.5} /></button>
-                        <button type="button" className="icon-btn" aria-label={`Remove section ${i + 1}`} onClick={() => setList('sections', (l) => l.filter((_, j) => j !== i))}><HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={1.5} /></button>
+                          onChange={(e) => patchSection(i, { description: e.target.value })} />
+
+                        {editing && (
+                          <div className="videos-panel">
+                            <button type="button" className="videos-toggle" aria-expanded={!collapsed[s.key]} onClick={() => setCollapsed((c) => ({ ...c, [s.key]: !c[s.key] }))}>
+                              <HugeiconsIcon icon={collapsed[s.key] ? ArrowRight01Icon : ArrowDown01Icon} size={14} strokeWidth={1.5} />
+                              Videos <span className="tab-count">{s.videos.length}</span>
+                            </button>
+                            {!collapsed[s.key] && (
+                              <div className="video-list">
+                                {s.videos.length === 0 && <p className="empty-line">No videos in this section yet.</p>}
+                                {s.videos.map((v, vi) => {
+                                  const locked = v.id !== null && (v.watchers > 0 || v.files > 0);
+                                  const why = v.watchers > 0 ? `${v.watchers} ${v.watchers === 1 ? 'student has' : 'students have'} watched it` : `it has ${v.files} practice ${v.files === 1 ? 'file' : 'files'}`;
+                                  return (
+                                    <div key={v.key} className="video-row">
+                                      <div className="video-main">
+                                        <span className="video-num">{vi + 1}</span>
+                                        <input className="video-title" type="text" maxLength={200} placeholder="Video title" aria-label={`Section ${i + 1} video ${vi + 1} title`} value={v.title} onChange={(e) => patchVideo(i, vi, { title: e.target.value })} />
+                                        <input className="video-length" type="text" inputMode="numeric" placeholder="m:ss" title="Length, like 12:30" aria-label={`Section ${i + 1} video ${vi + 1} length`} value={v.duration} onChange={(e) => patchVideo(i, vi, { duration: e.target.value })} />
+                                        <button type="button" className={`mini-chip${v.is_free_preview ? ' on' : ''}`} aria-pressed={v.is_free_preview} onClick={() => patchVideo(i, vi, { is_free_preview: !v.is_free_preview })}>Free preview</button>
+                                        <button type="button" className={`mini-chip${v.is_published ? ' on' : ''}`} aria-pressed={v.is_published} onClick={() => patchVideo(i, vi, { is_published: !v.is_published })}>{v.is_published ? 'Published' : 'Draft'}</button>
+                                        <span className="video-actions">
+                                          <button type="button" className="icon-btn" aria-label="Move video up" disabled={vi === 0} onClick={() => moveVideo(i, vi, -1)}><HugeiconsIcon icon={ArrowUp01Icon} size={14} strokeWidth={1.5} /></button>
+                                          <button type="button" className="icon-btn" aria-label="Move video down" disabled={vi === s.videos.length - 1} onClick={() => moveVideo(i, vi, 1)}><HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={1.5} /></button>
+                                          <button type="button" className="icon-btn" aria-label="More details" aria-expanded={Boolean(moreOpen[v.key])} title="Description and video link" onClick={() => setMoreOpen((o) => ({ ...o, [v.key]: !o[v.key] }))}><HugeiconsIcon icon={moreOpen[v.key] ? ArrowDown01Icon : ArrowRight01Icon} size={14} strokeWidth={1.5} /></button>
+                                          <button type="button" className="icon-btn" aria-label={`Remove video ${vi + 1}`} disabled={locked} title={locked ? `Can’t be removed: ${why}` : 'Remove this video'} onClick={() => removeVideo(i, vi)}><HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={1.5} /></button>
+                                        </span>
+                                      </div>
+                                      {moreOpen[v.key] && (
+                                        <div className="video-more">
+                                          <textarea rows={2} maxLength={5000} placeholder="Description (optional)" aria-label={`Section ${i + 1} video ${vi + 1} description`} value={v.description} onChange={(e) => patchVideo(i, vi, { description: e.target.value })} />
+                                          <input type="url" placeholder={v.hasLink ? 'A video link is set. Paste a new link only to replace it.' : 'Paste the video link (https://…)'} aria-label={`Section ${i + 1} video ${vi + 1} link`} value={v.link} onChange={(e) => patchVideo(i, vi, { link: e.target.value })} />
+                                          {locked && <small className="muted">Can’t be removed: {why}.</small>}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                                <button type="button" className="link-btn add-video" onClick={() => addVideo(i)}>+ Add video</button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -383,7 +516,9 @@ export default function AddCourse({ onNavigate }) {
               <Group label="Thumbnail" hint={`jpg, png, gif or webp, up to ${THUMB_MB} MB`} error={errors.thumbnail_url}>
                 {values.thumbnail_url && isUrl(values.thumbnail_url) ? (
                   <div className="thumb-box">
-                    <img src={values.thumbnail_url} alt="Course thumbnail" />
+                    {thumbBroken
+                      ? <div className="thumb-broken">Can’t show this picture. Its link may have expired. Remove it to upload a new one.</div>
+                      : <img src={values.thumbnail_url} alt="Course thumbnail" onError={() => setThumbBroken(true)} />}
                     <div className="thumb-info">
                       <span className="mono">{values.thumbnail_url.length > 70 ? `${values.thumbnail_url.slice(0, 67)}…` : values.thumbnail_url}</span>
                       <button type="button" className="btn" onClick={() => set('thumbnail_url', '')}>Remove</button>
@@ -430,13 +565,14 @@ export default function AddCourse({ onNavigate }) {
               ]} />
               <Review title="Content" onEdit={() => goTo(2)} rows={[
                 ['Sections', filledSections.length ? filledSections.map((s) => s.title.trim()).join(' · ') : 'None yet'],
+                ...(editing ? [['Videos', `${videoTotal} in total`]] : []),
                 ['Software', filledSoftware.length ? filledSoftware.map((s) => s.name.trim()).join(' · ') : 'None yet'],
               ]} />
-              <Review title="Media" onEdit={() => goTo(4)} rows={[['Thumbnail', values.thumbnail_url ? <img key="t" className="review-thumb" src={values.thumbnail_url} alt="Thumbnail" /> : 'None']]} />
+              <Review title="Media" onEdit={() => goTo(4)} rows={[['Thumbnail', values.thumbnail_url ? (thumbBroken ? 'Set (the picture can’t be shown right now)' : <img key="t" className="review-thumb" src={values.thumbnail_url} alt="Thumbnail" onError={() => setThumbBroken(true)} />) : 'None']]} />
 
-              <Group label="Publishing" hint={values.status === 'draft' ? 'Draft courses are hidden from students. Publish it later, once it has content.' : 'Students can see and buy this course straight away.'} error={errors.status}>
+              <Group label="Publishing" hint={values.status === 'draft' ? (editing ? 'Draft courses are hidden from students.' : 'Draft courses are hidden from students. Publish it later, once it has content.') : (editing ? 'Students can see and buy this course.' : 'Students can see and buy this course straight away.')} error={errors.status}>
                 <div className="chips" role="radiogroup" aria-label="Status">
-                  {[['draft', 'Save as draft'], ['published', 'Publish now']].map(([v, label]) => (
+                  {[['draft', editing ? 'Draft' : 'Save as draft'], ['published', editing ? 'Published' : 'Publish now']].map(([v, label]) => (
                     <button key={v} type="button" role="radio" aria-checked={values.status === v} className={values.status === v ? 'on' : ''} onClick={() => set('status', v)}>{label}</button>
                   ))}
                 </div>
@@ -446,13 +582,13 @@ export default function AddCourse({ onNavigate }) {
           )}
 
           <div className="wizard-actions">
-            <button type="button" className="btn with-icon" onClick={() => onNavigate('Courses')} disabled={saving}>
+            <button type="button" className="btn with-icon" onClick={leave} disabled={saving}>
               <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={1.5} /> Cancel
             </button>
             <div className="wizard-nav">
               {step > 0 && <button type="button" className="btn with-icon" onClick={() => goTo(step - 1)} disabled={saving}><HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={1.5} /> Back</button>}
               <button type="submit" className="btn primary with-icon" disabled={saving || uploading}>
-                {step < STEPS.length - 1 ? <>Continue <HugeiconsIcon icon={ArrowRight01Icon} size={16} strokeWidth={1.5} /></> : saving ? 'Creating…' : (values.status === 'published' ? 'Create & publish' : 'Create course')}
+                {step < STEPS.length - 1 ? <>Continue <HugeiconsIcon icon={ArrowRight01Icon} size={16} strokeWidth={1.5} /></> : saving ? (editing ? 'Saving…' : 'Creating…') : editing ? 'Save changes' : (values.status === 'published' ? 'Create & publish' : 'Create course')}
               </button>
             </div>
           </div>
@@ -460,6 +596,10 @@ export default function AddCourse({ onNavigate }) {
       </div>
     </div>
   );
+}
+
+export default function AddCourse(props) {
+  return <CourseWizard {...props} />;
 }
 
 // a small table on the Review step, with a shortcut back to the step that owns it

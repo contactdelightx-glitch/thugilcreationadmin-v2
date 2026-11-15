@@ -10,6 +10,8 @@ import {
   UserAccountIcon,
   CreditCardIcon,
   Certificate01Icon,
+  StarIcon,
+  HelpCircleIcon,
 } from '@hugeicons/core-free-icons';
 
 export const navItems = [
@@ -23,5 +25,7 @@ export const navItems = [
   { label: 'Students', icon: GraduationScrollIcon },
   { label: 'Courses', icon: Book02Icon },
   { label: 'Certificates', icon: Certificate01Icon },
+  { label: 'Doubts', icon: HelpCircleIcon },
+  { label: 'Ratings', icon: StarIcon },
   { label: 'Notifications', icon: Notification03Icon },
 ];

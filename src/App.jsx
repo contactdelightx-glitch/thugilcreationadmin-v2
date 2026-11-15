@@ -8,6 +8,7 @@ import {
   SidebarLeftIcon,
 } from '@hugeicons/core-free-icons';
 import { navItems } from './navItems';
+import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Designs from './pages/Designs';
 import AddDesign from './pages/AddDesign';
@@ -19,10 +20,13 @@ import CoursePayments from './pages/CoursePayments';
 import Courses from './pages/Courses';
 import CourseDetail from './pages/CourseDetail';
 import AddCourse from './pages/AddCourse';
+import EditCourse from './pages/EditCourse';
 import Certificates from './pages/Certificates';
+import Ratings from './pages/Ratings';
+import Doubts from './pages/Doubts';
 
 // pages that have their own toolbar/search
-const PAGES = { Users, Client, Payments, 'Course Payments': CoursePayments, Students, Courses, 'Course Details': CourseDetail, 'Add Course': AddCourse, Certificates, Designs, Images, 'Add Design': AddDesign };
+const PAGES = { Dashboard, Users, Client, Payments, 'Course Payments': CoursePayments, Students, Courses, 'Course Details': CourseDetail, 'Add Course': AddCourse, 'Edit Course': EditCourse, Certificates, Ratings, Doubts, Designs, Images, 'Add Design': AddDesign };
 
 const MOBILE = '(max-width: 768px)';
 
@@ -78,7 +82,7 @@ export default function App() {
           {navItems.map(({ label, icon }) => (
             <button
               key={label}
-              className={`nav-item${active === label || (label === 'Designs' && active === 'Add Design') || (label === 'Courses' && (active === 'Course Details' || active === 'Add Course')) ? ' active' : ''}`}
+              className={`nav-item${active === label || (label === 'Designs' && active === 'Add Design') || (label === 'Courses' && (active === 'Course Details' || active === 'Add Course' || active === 'Edit Course')) ? ' active' : ''}`}
               onClick={() => select(label)}
               title={collapsed ? label : undefined}
             >
