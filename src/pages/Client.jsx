@@ -3,6 +3,7 @@ import { HugeiconsIcon } from '@hugeicons/react';
 import { Search01Icon, UserBlock01Icon, UserCheck01Icon, Delete02Icon, AddSquareIcon } from '@hugeicons/core-free-icons';
 import { fetchDesigners, updateDesignerStatus, deleteDesigner } from '../api';
 import AddClientModal from '../components/AddClientModal';
+import ClientDesigns from '../components/ClientDesigns';
 
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -18,6 +19,7 @@ export default function Client() {
   const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
   const [adding, setAdding] = useState(false);
+  const [viewing, setViewing] = useState(null); // the client whose designs are open
 
   const load = useCallback((signal) => {
     return fetchDesigners({ signal })
@@ -96,6 +98,8 @@ export default function Client() {
 
   const totalDesigns = (designers || []).reduce((n, d) => n + d.designs, 0);
 
+  if (viewing) return <ClientDesigns designer={viewing} onBack={() => setViewing(null)} />;
+
   return (
     <div className="clients">
       <div className="toolbar">
@@ -136,7 +140,9 @@ export default function Client() {
           </thead>
           <tbody>
             {shown.map((d) => (
-              <tr key={d.id} className={d.status !== 'active' ? 'is-removed' : ''}>
+              <tr key={d.id} className={`clickable-row${d.status !== 'active' ? ' is-removed' : ''}`} tabIndex={0} title="See this client’s designs"
+                onClick={() => setViewing(d)}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget && (e.preventDefault(), setViewing(d))}>
                 <td data-label="ID" className="col-id">{d.id}</td>
                 <td data-label="Email" className="cell-strong">{d.email}</td>
                 <td data-label="Role">{ROLE[d.type] || cap(d.type)}</td>
@@ -147,7 +153,7 @@ export default function Client() {
                   {d.type === 'superadmin' ? (
                     <span className="muted owner-note">Owner</span>
                   ) : (
-                    <div className="row-actions">
+                    <div className="row-actions" onClick={(e) => e.stopPropagation()}>
                       {actionsFor(d).map((key) => (
                         <button
                           key={key}

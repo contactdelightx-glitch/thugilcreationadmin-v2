@@ -24,9 +24,10 @@ import EditCourse from './pages/EditCourse';
 import Certificates from './pages/Certificates';
 import Ratings from './pages/Ratings';
 import Doubts from './pages/Doubts';
+import DesignRequests from './pages/DesignRequests';
 
 // pages that have their own toolbar/search
-const PAGES = { Dashboard, Users, Client, Payments, 'Course Payments': CoursePayments, Students, Courses, 'Course Details': CourseDetail, 'Add Course': AddCourse, 'Edit Course': EditCourse, Certificates, Ratings, Doubts, Designs, Images, 'Add Design': AddDesign };
+const PAGES = { Dashboard, Users, Client, Payments, 'Course Payments': CoursePayments, Students, Courses, 'Course Details': CourseDetail, 'Add Course': AddCourse, 'Edit Course': EditCourse, Certificates, Ratings, Doubts, 'Design Requests': DesignRequests, Designs, Images, 'Add Design': AddDesign };
 
 const MOBILE = '(max-width: 768px)';
 

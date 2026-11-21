@@ -1,3 +1,5 @@
+import VideoUploader, { UploadStatus } from '../components/VideoUploader';
+import { VideoThumb } from '../components/VideoPreview';
 import { useEffect, useRef, useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
@@ -45,7 +47,7 @@ const toSeconds = (str) => {
   const parts = t.split(':').map(Number);
   return parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1];
 };
-const newVideo = () => ({ key: nextKey('nv'), id: null, title: '', description: '', link: '', hasLink: false, duration: '', is_free_preview: false, is_published: false, watchers: 0, files: 0 });
+const newVideo = () => ({ key: nextKey('nv'), id: null, title: '', description: '', link: '', hasLink: false, thumbnail_url: '', duration: '', is_free_preview: false, is_published: false, watchers: 0, files: 0 });
 const newSection = () => ({ key: nextKey('ns'), id: null, title: '', description: '', videoCount: 0, videos: [] });
 
 const initial = () => ({
@@ -67,7 +69,7 @@ const fromCourse = (d) => {
     sections: (d.curriculum ? d.curriculum.sections : d.sections).map((s) => ({
       key: `s${s.id}`, id: s.id, title: s.title, description: s.description || '', videoCount: s.videos.length,
       videos: s.videos.map((v) => ({
-        key: `v${v.id}`, id: v.id, title: v.title, description: v.description || '', link: '', hasLink: Boolean(v.has_video_link),
+        key: `v${v.id}`, id: v.id, title: v.title, description: v.description || '', link: '', hasLink: Boolean(v.has_video_link), thumbnail_url: v.thumbnail_url || '',
         duration: clock(v.duration_seconds), is_free_preview: v.is_free_preview, is_published: v.is_published, watchers: v.watchers || 0, files: v.files || 0,
       })),
     })),
@@ -155,6 +157,8 @@ export function CourseWizard({ onNavigate, course }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [videoJobs, setVideoJobs] = useState({}); // video key -> the state of its upload
+  const videosBusy = Object.values(videoJobs).some((j) => j && (j.phase === 'sending' || j.phase === 'processing'));
   const [uploadError, setUploadError] = useState('');
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef(null);
@@ -206,6 +210,7 @@ export function CourseWizard({ onNavigate, course }) {
           videos: s.videos.map((v) => ({
             id: v.id, title: v.title, description: v.description, video_url: v.link, duration_seconds: toSeconds(v.duration),
             is_free_preview: v.is_free_preview, is_published: v.is_published,
+            ...(v.bunny_video_id ? { bunny_video_id: v.bunny_video_id, thumbnail_url: v.thumbnail_url, available_resolutions: v.available_resolutions } : {}),
           })),
         } : {}),
       })),
@@ -400,8 +405,8 @@ export function CourseWizard({ onNavigate, course }) {
           {step === 2 && (
             <>
               <div className="note">{editing
-                ? 'Change the order of sections and of the videos in them, and edit each video’s details. A video file itself can’t be uploaded from here: to replace one, paste its new link. Sections and videos that students have started can’t be removed.'
-                : 'Videos can’t be uploaded from here yet. Add the sections now and put videos into them after the course is created.'}</div>
+                ? 'Change the order of sections and of the videos in them, and edit each video’s details. Use Upload video on a video to send its file from your computer, or paste a link instead. Sections and videos that students have started can’t be removed.'
+                : 'Add the sections now. Videos go into them after the course is created: open the course, choose Edit, and use Upload video.'}</div>
               <Group label="Sections" hint={`${filledSections.length} section${filledSections.length === 1 ? '' : 's'}${editing ? ` · ${videoTotal} video${videoTotal === 1 ? '' : 's'}` : ''} — they appear in this order`} error={errors.sections}
                 action={
                   <span className="group-actions">
@@ -448,8 +453,15 @@ export function CourseWizard({ onNavigate, course }) {
                                     <div key={v.key} className="video-row">
                                       <div className="video-main">
                                         <span className="video-num">{vi + 1}</span>
+                                        {(v.id !== null || v.link) && (
+                                          <VideoThumb video={{ id: v.id, title: v.title || 'Video', thumbnail_url: v.thumbnail_url }}
+                                            source={v.bunny_video_id || v.id === null ? { video_url: v.link, thumbnail_url: v.thumbnail_url } : undefined} />
+                                        )}
                                         <input className="video-title" type="text" maxLength={200} placeholder="Video title" aria-label={`Section ${i + 1} video ${vi + 1} title`} value={v.title} onChange={(e) => patchVideo(i, vi, { title: e.target.value })} />
                                         <input className="video-length" type="text" inputMode="numeric" placeholder="m:ss" title="Length, like 12:30" aria-label={`Section ${i + 1} video ${vi + 1} length`} value={v.duration} onChange={(e) => patchVideo(i, vi, { duration: e.target.value })} />
+                                        <VideoUploader title={v.title} label={`Section ${i + 1} video ${vi + 1}`} replacing={v.hasLink}
+                                          onState={(st) => setVideoJobs((j) => { const o = j[v.key]; return o && o.phase === st.phase && o.percent === st.percent && o.note === st.note ? j : { ...j, [v.key]: st }; })}
+                                          onDone={(r) => patchVideo(i, vi, { link: r.video_url, hasLink: true, duration: clock(r.duration_seconds), bunny_video_id: r.bunny_video_id, thumbnail_url: r.thumbnail_url, available_resolutions: r.available_resolutions })} />
                                         <button type="button" className={`mini-chip${v.is_free_preview ? ' on' : ''}`} aria-pressed={v.is_free_preview} onClick={() => patchVideo(i, vi, { is_free_preview: !v.is_free_preview })}>Free preview</button>
                                         <button type="button" className={`mini-chip${v.is_published ? ' on' : ''}`} aria-pressed={v.is_published} onClick={() => patchVideo(i, vi, { is_published: !v.is_published })}>{v.is_published ? 'Published' : 'Draft'}</button>
                                         <span className="video-actions">
@@ -459,6 +471,7 @@ export function CourseWizard({ onNavigate, course }) {
                                           <button type="button" className="icon-btn" aria-label={`Remove video ${vi + 1}`} disabled={locked} title={locked ? `Can’t be removed: ${why}` : 'Remove this video'} onClick={() => removeVideo(i, vi)}><HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={1.5} /></button>
                                         </span>
                                       </div>
+                                      <UploadStatus job={videoJobs[v.key]} />
                                       {moreOpen[v.key] && (
                                         <div className="video-more">
                                           <textarea rows={2} maxLength={5000} placeholder="Description (optional)" aria-label={`Section ${i + 1} video ${vi + 1} description`} value={v.description} onChange={(e) => patchVideo(i, vi, { description: e.target.value })} />
@@ -587,7 +600,7 @@ export function CourseWizard({ onNavigate, course }) {
             </button>
             <div className="wizard-nav">
               {step > 0 && <button type="button" className="btn with-icon" onClick={() => goTo(step - 1)} disabled={saving}><HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={1.5} /> Back</button>}
-              <button type="submit" className="btn primary with-icon" disabled={saving || uploading}>
+              <button type="submit" className="btn primary with-icon" disabled={saving || uploading || videosBusy} title={videosBusy ? 'A video is still uploading' : undefined}>
                 {step < STEPS.length - 1 ? <>Continue <HugeiconsIcon icon={ArrowRight01Icon} size={16} strokeWidth={1.5} /></> : saving ? (editing ? 'Saving…' : 'Creating…') : editing ? 'Save changes' : (values.status === 'published' ? 'Create & publish' : 'Create course')}
               </button>
             </div>

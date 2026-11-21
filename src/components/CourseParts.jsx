@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowRight01Icon, ArrowDown01Icon } from '@hugeicons/core-free-icons';
+import { VideoThumb } from './VideoPreview';
 
 // Pieces shared by the Courses list and the Course details page.
 
@@ -75,7 +76,9 @@ function Curriculum({ sections }) {
                         {s.videos.map((v) => (
                           <tr key={v.id}>
                             <td data-label="#">{v.position}</td>
-                            <td data-label="Video">{v.title}</td>
+                            <td data-label="Video">
+                              <div className="vcell"><VideoThumb video={v} /><span className="vtitle">{v.title}</span></div>
+                            </td>
                             <td data-label="Length" className="num">{clock(v.duration_seconds)}</td>
                             <td data-label="Free preview">{yes(v.is_free_preview)}</td>
                             <td data-label="Status"><Published on={v.is_published} /></td>

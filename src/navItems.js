@@ -12,6 +12,7 @@ import {
   Certificate01Icon,
   StarIcon,
   HelpCircleIcon,
+  CustomerSupportIcon,
 } from '@hugeicons/core-free-icons';
 
 export const navItems = [
@@ -26,6 +27,7 @@ export const navItems = [
   { label: 'Courses', icon: Book02Icon },
   { label: 'Certificates', icon: Certificate01Icon },
   { label: 'Doubts', icon: HelpCircleIcon },
+  { label: 'Design Requests', icon: CustomerSupportIcon },
   { label: 'Ratings', icon: StarIcon },
   { label: 'Notifications', icon: Notification03Icon },
 ];

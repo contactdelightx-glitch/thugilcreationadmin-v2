@@ -130,6 +130,15 @@ export async function fetchDesigners({ status, signal } = {}) {
   return res.json();
 }
 
+// the designs one client has uploaded: just each design's name and picture
+export async function fetchDesignerDesigns(id, { search, offset, limit, signal }) {
+  const qs = new URLSearchParams({ offset, limit });
+  if (search) qs.set('search', search);
+  const res = await apiFetch(`/api/designers/${id}/designs?${qs}`, { signal });
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.json();
+}
+
 async function sendDesigner(url, options) {
   const res = await apiFetch(url, options);
   const body = await res.json().catch(() => ({}));
@@ -367,4 +376,53 @@ export async function fetchDashboard() {
   const res = await apiFetch('/api/dashboard');
   if (!res.ok) throw new Error(`Request failed (${res.status})`);
   return res.json();
+}
+
+// ---- design requests ("Contact designer" messages from the website and the app)
+export async function fetchDesignRequests({ search, status, offset, limit, signal }) {
+  const qs = new URLSearchParams({ status, offset, limit });
+  if (search) qs.set('search', search);
+  const res = await apiFetch(`/api/design-requests?${qs}`, { signal });
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.json();
+}
+
+export async function fetchDesignRequestSummary() {
+  const res = await apiFetch('/api/design-requests/summary');
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.json();
+}
+
+export const updateDesignRequest = (id, change) =>
+  send(`/api/design-requests/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(change),
+  });
+
+export const deleteDesignRequest = (id) => send(`/api/design-requests/${id}`, { method: 'DELETE' });
+
+// the address of a picture the visitor attached (n = 1 or 2); the backend serves it
+export const designRequestImageUrl = (id, n) => `${API}/api/design-requests/${id}/images/${n}`;
+
+// downloads a design's original file (a Full Set with several files comes as one zip)
+export const designDownloadUrl = (category, id) => `${API}/api/designs/${category}/${id}/download`;
+
+// ---- course video upload (to Bunny). The file goes from the browser straight to Bunny; this server only prepares and checks it.
+async function videoSend(url, options) {
+  const res = await apiFetch(url, options);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
+  return body;
+}
+export const startVideoUpload = (title) =>
+  videoSend('/api/courses/videos/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
+export const fetchVideoStatus = (id, { signal } = {}) => videoSend(`/api/courses/videos/bunny/${id}`, { signal });
+
+// where to play a course video (its stream link and picture), for the preview on the course page
+export async function fetchVideoSource(id) {
+  const res = await apiFetch(`/api/courses/videos/${id}/source`);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
+  return body;
 }
